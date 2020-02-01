@@ -6,7 +6,6 @@ then
 fi
 name="$1"
 composer create-project symfony/website-skeleton "$name"
-# symfony "$name" --full
 cd "$name"
 composer require fzaninotto/faker
 composer require doctrine/doctrine-fixtures-bundle --dev
@@ -42,6 +41,7 @@ sed 's/^DATABASE_URL=mysql/# DATABASE_URL=mysql/g' .env > tmp.env && mv tmp.env 
 echo 'DATABASE_URL=sqlite:///%kernel.project_dir%/var/data.db' >> .env
 
 php bin/console make:controller WelcomeController
+php bin/console make:controller Admin
 php bin/console doctrine:database:create
 # composer require symfony/mailer
 # composer require mailgun-mailer
@@ -55,7 +55,7 @@ php bin/console make:auth
 php bin/console make:registration-form
 
 composer require easycorp/easyadmin-bundle
-sed 's/prefix: /admin/prefix: /ezadmin/g' config/routes/easy_admin.yaml > new.yaml && mv new.yaml config/routes/easy_admin.yaml;
+sed 's/prefix: \/admin/prefix: \/ezadmin/g' config/routes/easy_admin.yaml > new.yaml && mv new.yaml config/routes/easy_admin.yaml;
 
 mkdir src/Module
 mkdir src/Module/Entity
@@ -151,7 +151,7 @@ cat << EOF >> templates/admin.html.twig
         <meta charset="UTF-8">
         <title>{% block title %}Welcome!{% endblock %}</title>
         {{ encore_entry_link_tags("app") }}
-        {{ encore_entry_script_tags("app") }}
+				{{ encore_entry_link_tags("sb-admin-2") }}
         {% block stylesheets %}{% endblock %}
     </head>
     <body id="page-top">
@@ -204,7 +204,9 @@ cat << EOF >> templates/admin.html.twig
   <a class="scroll-to-top rounded" href="#page-top">
     <i class="fas fa-angle-up"></i>
   </a>
-        {% block javascripts %}{% endblock %}
+			{{ encore_entry_script_tags("app") }}
+			{{ encore_entry_script_tags("sb-admin-2") }}
+      {% block javascripts %}{% endblock %}
     </body>
 </html>
 EOF
@@ -215,7 +217,7 @@ cat << EOF >> templates/admin-sidebar.html.twig
 <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
 
 	<!-- Sidebar - Brand -->
-	<a class="sidebar-brand d-flex align-items-center justify-content-center" href="index.html">
+	<a class="sidebar-brand d-flex align-items-center justify-content-center" href="/">
 		<div class="sidebar-brand-icon rotate-n-15">
 			<i class="fas fa-laugh-wink"></i>
 		</div>
@@ -227,7 +229,7 @@ cat << EOF >> templates/admin-sidebar.html.twig
 
 	<!-- Nav Item - Dashboard -->
 	<li class="nav-item">
-		<a class="nav-link" href="index.html">
+		<a class="nav-link" href="/admin">
 			<i class="fas fa-fw fa-tachometer-alt"></i>
 			<span>Dashboard</span></a>
 	</li>
