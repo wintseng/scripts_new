@@ -1,0 +1,521 @@
+#!/bin/sh
+if [ $# -lt 1 ]
+then
+	echo "usage: $0 參數"
+	exit
+fi
+name="$1"
+composer create-project symfony/website-skeleton "$name"
+# symfony "$name" --full
+cd "$name"
+composer require fzaninotto/faker
+composer require doctrine/doctrine-fixtures-bundle --dev
+composer require sensiolabs/security-checker
+composer require symfony/webpack-encore-bundle
+composer require api
+
+npm install @symfony/webpack-encore --save-dev
+npm install bootstrap font-awesome jquery popper.js vue
+npm install webpack-notifier@^1.6.0 --save-dev
+npm install sass-loader@^7.0.1 node-sass --save-dev
+npm install startbootstrap-sb-admin-2
+echo '@import "~bootstrap/scss/bootstrap";' >> assets/css/global.scss
+echo '@import "~font-awesome/scss/font-awesome.scss";' >> assets/css/global.scss
+
+echo 'require("../css/global.scss");' >> assets/js/app.js
+sed "s/\/\/ import \$ from 'jquery'/import \$ from 'jquery'/g" assets/js/app.js > new.js && mv new.js assets/js/app.js;
+
+echo 'window.Vue = require("vue");' >> assets/js/app.js
+echo 'require("bootstrap");' >> assets/js/app.js
+
+echo '@import "~startbootstrap-sb-admin-2/scss/sb-admin-2.scss";' >> assets/css/sb-admin-2.scss
+echo 'require("startbootstrap-sb-admin-2/js/sb-admin-2");' >> assets/js/sb-admin-2.js
+echo 'require("../css/sb-admin-2.scss");' >> assets/js/sb-admin-2.js
+sed 's/\/\/\.enableSassLoader/\.enableSassLoader/g' webpack.config.js > new.js && mv new.js webpack.config.js;
+sed "s/\/\/\.addEntry('page1', '\.\/assets\/js\/page1\.js')/\.addEntry('sb-admin-2', '\.\/assets\/js\/sb-admin-2\.js')/g" webpack.config.js > new.js && mv new.js webpack.config.js;
+
+npm run dev
+
+echo "    form_themes: ['bootstrap_4_layout.html.twig']" >> config/packages/twig.yaml
+
+sed 's/^DATABASE_URL=mysql/# DATABASE_URL=mysql/g' .env > tmp.env && mv tmp.env .env;
+echo 'DATABASE_URL=sqlite:///%kernel.project_dir%/var/data.db' >> .env
+
+php bin/console make:controller WelcomeController
+php bin/console doctrine:database:create
+# composer require symfony/mailer
+# composer require mailgun-mailer
+composer require symfony/security-bundle
+php bin/console make:user
+
+php bin/console make:migration
+php bin/console doctrine:migrations:migrate
+
+php bin/console make:auth
+php bin/console make:registration-form
+
+composer require easycorp/easyadmin-bundle
+sed 's/prefix: /admin/prefix: /ezadmin/g' config/routes/easy_admin.yaml > new.yaml && mv new.yaml config/routes/easy_admin.yaml;
+
+mkdir src/Module
+mkdir src/Module/Entity
+mkdir src/Module/templates
+
+cat << EOF >> config/services.yaml
+    App\Module\:
+      resource: '../src/Module'
+      tags: ['controller.service_arguments']
+EOF
+
+cat << EOF >> config/routes/annotations.yaml
+modules:
+    resource: ../../src/Module/
+    type: annotation
+EOF
+
+cat << EOF >> config/packages/doctrine.yaml
+            Module:
+             is_bundle: false
+             type: annotation
+             dir: '%kernel.project_dir%/src/Module'
+             prefix: 'Module\Entity'
+             alias: Module
+EOF
+
+cat << EOF >> config/packages/twig.yaml
+    paths:
+      '%kernel.project_dir%/templates':
+      '%kernel.project_dir%/src/Module/templates': 'module'
+EOF
+
+cat <<EOF>>templates/nav.html.twig
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+  <a class="navbar-brand" href="/">Home</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav mr-auto">
+      <li class="nav-item">
+        <a class="nav-link" href="/admin">admin</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/ezadmin">easy_admin</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/api">REST-API</a>
+      </li>
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          Dropdown
+        </a>
+        <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+          <a class="dropdown-item" href="#">Action</a>
+          <a class="dropdown-item" href="#">Another action</a>
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item" href="#">Something else here</a>
+        </div>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">Disabled</a>
+      </li>
+
+    </ul>
+    <ul class="navbar-nav mr-0">
+      {% if is_granted('ROLE_USER') %}
+      <li class="nav-item">
+        <a class="nav-link" href="{{ path('app_logout') }}" >{{ app.user.username }}登出</a>a
+      </li>
+      {% else %}
+      <li class="nav-item">
+        <a class="nav-link" href="{{ path('app_login') }}" >登入</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{{ path('app_register') }}" >註冊</a>
+      </li>
+      {% endif %}
+    </ul>
+    <form class="form-inline my-2 my-lg-0">
+      <input class="form-control mr-sm-2" type="search" placeholder="Search" aria-label="Search">
+      <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Search</button>
+    </form>
+  </div>
+</nav>
+EOF
+
+cat << EOF >> templates/admin.html.twig
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>{% block title %}Welcome!{% endblock %}</title>
+        {{ encore_entry_link_tags("app") }}
+        {{ encore_entry_script_tags("app") }}
+        {% block stylesheets %}{% endblock %}
+    </head>
+    <body id="page-top">
+      <!-- Page Wrapper -->
+  <div id="wrapper">
+
+    <!-- Sidebar -->
+		{% include('admin-sidebar.html.twig') %}
+
+    <!-- Content Wrapper -->
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <!-- Main Content -->
+      <div id="content">
+
+				<!-- Topbar -->
+				{% include('admin-topbar.html.twig') %}
+
+        <!-- Begin Page Content -->
+        <div class="container-fluid">
+
+          <!-- Page Heading -->
+          <h1 class="h3 mb-4 text-gray-800">{{ block('title') }}</h1>
+
+           {% block body %}{% endblock %}
+
+        </div>
+        <!-- /.container-fluid -->
+
+      </div>
+      <!-- End of Main Content -->
+
+      <!-- Footer -->
+      <footer class="sticky-footer bg-white">
+        <div class="container my-auto">
+          <div class="copyright text-center my-auto">
+            <span>Copyright &copy; Your Website 2019</span>
+          </div>
+        </div>
+      </footer>
+      <!-- End of Footer -->
+
+    </div>
+    <!-- End of Content Wrapper -->
+
+  </div>
+  <!-- End of Page Wrapper -->
+
+  <!-- Scroll to Top Button-->
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+        {% block javascripts %}{% endblock %}
+    </body>
+</html>
+EOF
+
+
+cat << EOF >> templates/admin-sidebar.html.twig
+ <!-- Sidebar -->
+<ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+
+	<!-- Sidebar - Brand -->
+	<a class="sidebar-brand d-flex align-items-center justify-content-center" href="index.html">
+		<div class="sidebar-brand-icon rotate-n-15">
+			<i class="fas fa-laugh-wink"></i>
+		</div>
+		<div class="sidebar-brand-text mx-3">SB Admin <sup>2</sup></div>
+	</a>
+
+	<!-- Divider -->
+	<hr class="sidebar-divider my-0">
+
+	<!-- Nav Item - Dashboard -->
+	<li class="nav-item">
+		<a class="nav-link" href="index.html">
+			<i class="fas fa-fw fa-tachometer-alt"></i>
+			<span>Dashboard</span></a>
+	</li>
+
+	<!-- Divider -->
+	<hr class="sidebar-divider">
+
+	<!-- Heading -->
+	<div class="sidebar-heading">
+		Interface
+	</div>
+
+	<!-- Nav Item - Pages Collapse Menu -->
+	<li class="nav-item">
+		<a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseTwo" aria-expanded="true" aria-controls="collapseTwo">
+			<i class="fas fa-fw fa-cog"></i>
+			<span>Components</span>
+		</a>
+		<div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordionSidebar">
+			<div class="bg-white py-2 collapse-inner rounded">
+				<h6 class="collapse-header">Custom Components:</h6>
+				<a class="collapse-item" href="buttons.html">Buttons</a>
+				<a class="collapse-item" href="cards.html">Cards</a>
+			</div>
+		</div>
+	</li>
+
+	<!-- Nav Item - Utilities Collapse Menu -->
+	<li class="nav-item">
+		<a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseUtilities" aria-expanded="true" aria-controls="collapseUtilities">
+			<i class="fas fa-fw fa-wrench"></i>
+			<span>Utilities</span>
+		</a>
+		<div id="collapseUtilities" class="collapse" aria-labelledby="headingUtilities" data-parent="#accordionSidebar">
+			<div class="bg-white py-2 collapse-inner rounded">
+				<h6 class="collapse-header">Custom Utilities:</h6>
+				<a class="collapse-item" href="utilities-color.html">Colors</a>
+				<a class="collapse-item" href="utilities-border.html">Borders</a>
+				<a class="collapse-item" href="utilities-animation.html">Animations</a>
+				<a class="collapse-item" href="utilities-other.html">Other</a>
+			</div>
+		</div>
+	</li>
+
+	<!-- Divider -->
+	<hr class="sidebar-divider">
+
+	<!-- Heading -->
+	<div class="sidebar-heading">
+		Addons
+	</div>
+
+	<!-- Nav Item - Pages Collapse Menu -->
+	<li class="nav-item active">
+		<a class="nav-link" href="#" data-toggle="collapse" data-target="#collapsePages" aria-expanded="true" aria-controls="collapsePages">
+			<i class="fas fa-fw fa-folder"></i>
+			<span>Pages</span>
+		</a>
+		<div id="collapsePages" class="collapse show" aria-labelledby="headingPages" data-parent="#accordionSidebar">
+			<div class="bg-white py-2 collapse-inner rounded">
+				<h6 class="collapse-header">Login Screens:</h6>
+				<a class="collapse-item" href="login.html">Login</a>
+				<a class="collapse-item" href="register.html">Register</a>
+				<a class="collapse-item" href="forgot-password.html">Forgot Password</a>
+				<div class="collapse-divider"></div>
+				<h6 class="collapse-header">Other Pages:</h6>
+				<a class="collapse-item" href="404.html">404 Page</a>
+				<a class="collapse-item active" href="blank.html">Blank Page</a>
+			</div>
+		</div>
+	</li>
+
+	<!-- Nav Item - Charts -->
+	<li class="nav-item">
+		<a class="nav-link" href="charts.html">
+			<i class="fas fa-fw fa-chart-area"></i>
+			<span>Charts</span></a>
+	</li>
+
+	<!-- Nav Item - Tables -->
+	<li class="nav-item">
+		<a class="nav-link" href="tables.html">
+			<i class="fas fa-fw fa-table"></i>
+			<span>Tables</span></a>
+	</li>
+
+	<!-- Divider -->
+	<hr class="sidebar-divider d-none d-md-block">
+
+	<!-- Sidebar Toggler (Sidebar) -->
+	<div class="text-center d-none d-md-inline">
+		<button class="rounded-circle border-0" id="sidebarToggle"></button>
+	</div>
+
+</ul>
+<!-- End of Sidebar -->
+EOF
+
+
+cat << EOF >> templates/admin-topbar.html.twig
+	<!-- Topbar -->
+	<nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+
+		<!-- Sidebar Toggle (Topbar) -->
+		<button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
+			<i class="fa fa-bars"></i>
+		</button>
+
+		<!-- Topbar Search -->
+		<form class="d-none d-sm-inline-block form-inline mr-auto ml-md-3 my-2 my-md-0 mw-100 navbar-search">
+			<div class="input-group">
+				<input type="text" class="form-control bg-light border-0 small" placeholder="Search for..." aria-label="Search" aria-describedby="basic-addon2">
+				<div class="input-group-append">
+					<button class="btn btn-primary" type="button">
+						<i class="fas fa-search fa-sm"></i>
+					</button>
+				</div>
+			</div>
+		</form>
+
+		<!-- Topbar Navbar -->
+		<ul class="navbar-nav ml-auto">
+
+			<!-- Nav Item - Search Dropdown (Visible Only XS) -->
+			<li class="nav-item dropdown no-arrow d-sm-none">
+				<a class="nav-link dropdown-toggle" href="#" id="searchDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+					<i class="fas fa-search fa-fw"></i>
+				</a>
+				<!-- Dropdown - Messages -->
+				<div class="dropdown-menu dropdown-menu-right p-3 shadow animated--grow-in" aria-labelledby="searchDropdown">
+					<form class="form-inline mr-auto w-100 navbar-search">
+						<div class="input-group">
+							<input type="text" class="form-control bg-light border-0 small" placeholder="Search for..." aria-label="Search" aria-describedby="basic-addon2">
+							<div class="input-group-append">
+								<button class="btn btn-primary" type="button">
+									<i class="fas fa-search fa-sm"></i>
+								</button>
+							</div>
+						</div>
+					</form>
+				</div>
+			</li>
+
+			<!-- Nav Item - Alerts -->
+			<li class="nav-item dropdown no-arrow mx-1">
+				<a class="nav-link dropdown-toggle" href="#" id="alertsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+					<i class="fas fa-bell fa-fw"></i>
+					<!-- Counter - Alerts -->
+					<span class="badge badge-danger badge-counter">3+</span>
+				</a>
+				<!-- Dropdown - Alerts -->
+				<div class="dropdown-list dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="alertsDropdown">
+					<h6 class="dropdown-header">
+						Alerts Center
+					</h6>
+					<a class="dropdown-item d-flex align-items-center" href="#">
+						<div class="mr-3">
+							<div class="icon-circle bg-primary">
+								<i class="fas fa-file-alt text-white"></i>
+							</div>
+						</div>
+						<div>
+							<div class="small text-gray-500">December 12, 2019</div>
+							<span class="font-weight-bold">A new monthly report is ready to download!</span>
+						</div>
+					</a>
+					<a class="dropdown-item d-flex align-items-center" href="#">
+						<div class="mr-3">
+							<div class="icon-circle bg-success">
+								<i class="fas fa-donate text-white"></i>
+							</div>
+						</div>
+						<div>
+							<div class="small text-gray-500">December 7, 2019</div>
+							$290.29 has been deposited into your account!
+						</div>
+					</a>
+					<a class="dropdown-item d-flex align-items-center" href="#">
+						<div class="mr-3">
+							<div class="icon-circle bg-warning">
+								<i class="fas fa-exclamation-triangle text-white"></i>
+							</div>
+						</div>
+						<div>
+							<div class="small text-gray-500">December 2, 2019</div>
+							Spending Alert: We've noticed unusually high spending for your account.
+						</div>
+					</a>
+					<a class="dropdown-item text-center small text-gray-500" href="#">Show All Alerts</a>
+				</div>
+			</li>
+
+			<!-- Nav Item - Messages -->
+			<li class="nav-item dropdown no-arrow mx-1">
+				<a class="nav-link dropdown-toggle" href="#" id="messagesDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+					<i class="fas fa-envelope fa-fw"></i>
+					<!-- Counter - Messages -->
+					<span class="badge badge-danger badge-counter">7</span>
+				</a>
+				<!-- Dropdown - Messages -->
+				<div class="dropdown-list dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="messagesDropdown">
+					<h6 class="dropdown-header">
+						Message Center
+					</h6>
+					<a class="dropdown-item d-flex align-items-center" href="#">
+						<div class="dropdown-list-image mr-3">
+							<img class="rounded-circle" src="https://source.unsplash.com/fn_BT9fwg_E/60x60" alt="">
+							<div class="status-indicator bg-success"></div>
+						</div>
+						<div class="font-weight-bold">
+							<div class="text-truncate">Hi there! I am wondering if you can help me with a problem I've been having.</div>
+							<div class="small text-gray-500">Emily Fowler · 58m</div>
+						</div>
+					</a>
+					<a class="dropdown-item d-flex align-items-center" href="#">
+						<div class="dropdown-list-image mr-3">
+							<img class="rounded-circle" src="https://source.unsplash.com/AU4VPcFN4LE/60x60" alt="">
+							<div class="status-indicator"></div>
+						</div>
+						<div>
+							<div class="text-truncate">I have the photos that you ordered last month, how would you like them sent to you?</div>
+							<div class="small text-gray-500">Jae Chun · 1d</div>
+						</div>
+					</a>
+					<a class="dropdown-item d-flex align-items-center" href="#">
+						<div class="dropdown-list-image mr-3">
+							<img class="rounded-circle" src="https://source.unsplash.com/CS2uCrpNzJY/60x60" alt="">
+							<div class="status-indicator bg-warning"></div>
+						</div>
+						<div>
+							<div class="text-truncate">Last month's report looks great, I am very happy with the progress so far, keep up the good work!</div>
+							<div class="small text-gray-500">Morgan Alvarez · 2d</div>
+						</div>
+					</a>
+					<a class="dropdown-item d-flex align-items-center" href="#">
+						<div class="dropdown-list-image mr-3">
+							<img class="rounded-circle" src="https://source.unsplash.com/Mv9hjnEUHR4/60x60" alt="">
+							<div class="status-indicator bg-success"></div>
+						</div>
+						<div>
+							<div class="text-truncate">Am I a good boy? The reason I ask is because someone told me that people say this to all dogs, even if they aren't good...</div>
+							<div class="small text-gray-500">Chicken the Dog · 2w</div>
+						</div>
+					</a>
+					<a class="dropdown-item text-center small text-gray-500" href="#">Read More Messages</a>
+				</div>
+			</li>
+
+			<div class="topbar-divider d-none d-sm-block"></div>
+
+			<!-- Nav Item - User Information -->
+			<li class="nav-item dropdown no-arrow">
+				<a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+					<span class="mr-2 d-none d-lg-inline text-gray-600 small">Valerie Luna</span>
+					<img class="img-profile rounded-circle" src="https://source.unsplash.com/QAB-WJcbgJk/60x60">
+				</a>
+				<!-- Dropdown - User Information -->
+				<div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
+					<a class="dropdown-item" href="#">
+						<i class="fas fa-user fa-sm fa-fw mr-2 text-gray-400"></i>
+						Profile
+					</a>
+					<a class="dropdown-item" href="#">
+						<i class="fas fa-cogs fa-sm fa-fw mr-2 text-gray-400"></i>
+						Settings
+					</a>
+					<a class="dropdown-item" href="#">
+						<i class="fas fa-list fa-sm fa-fw mr-2 text-gray-400"></i>
+						Activity Log
+					</a>
+					<div class="dropdown-divider"></div>
+					<a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
+						<i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
+						Logout
+					</a>
+				</div>
+			</li>
+
+		</ul>
+
+	</nav>
+	<!-- End of Topbar -->
+EOF
+
+sed 's/{% block stylesheets %}{% endblock %}/{{ encore_entry_link_tags("app") }}{% block stylesheets %}{% endblock %}/g' templates/base.html.twig > tmp.twig && mv tmp.twig templates/base.html.twig;
+sed 's/{% block javascripts %}{% endblock %}/{{ encore_entry_script_tags("app") }}{% block javascripts %}{% endblock %}/g' templates/base.html.twig > tmp.twig && mv tmp.twig templates/base.html.twig;
+sed 's/{% block body %}{% endblock %}/{% include("nav.html.twig") %}{% block body %}{% endblock %}/g' templates/base.html.twig > tmp.twig && mv tmp.twig templates/base.html.twig;
+
+
+echo '編輯與加入 \n{{ encore_entry_link_tags("app") }} \n{{ encore_entry_script_tags("app") }} \nto templates/base.html.twig'
+code .

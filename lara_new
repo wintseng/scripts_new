@@ -1,0 +1,27 @@
+#!/bin/sh
+if [ $# -lt 1 ]
+then
+	echo "usage: $0 參數"
+	exit
+fi
+name="$1"
+composer create-project --prefer-dist laravel/laravel "$name"
+cd "$name"
+composer require laravel/ui --dev
+php artisan ui vue --auth
+
+npm install && npm install bootstrap font-awesome startbootstrap-sb-admin-2 startbootstrap-one-page-wonder startbootstrap-blog-home
+echo '\r\r// Font-awesome\r@import "~font-awesome/scss/font-awesome";' >> resources/sass/app.scss
+echo '// startbootstrap-sb-admin-2\r@import "~startbootstrap-sb-admin-2/scss/sb-admin-2";' >> resources/sass/backend.scss
+echo '// startbootstrap-one-page-wonder\r@import "~startbootstrap-one-page-wonder/scss/one-page-wonder";' >> resources/sass/frontend.scss
+echo '// startbootstrap-blog-home\r@import "~startbootstrap-blog-home/css/blog-home.css";' >> resources/sass/blog.scss
+
+echo "\r\rmix.sass('resources/sass/backend.scss', 'public/css/')" >> webpack.mix.js
+echo "\r\rmix.sass('resources/sass/frontend.scss', 'public/css/')" >> webpack.mix.js
+echo "\r\rmix.sass('resources/sass/blog.scss', 'public/css/')" >> webpack.mix.js
+npm run dev
+
+touch database/database.sqlite
+sed "s/.*DB_CONNECTION=.*/DB_CONNECTION=sqlite/" .env > .tmp
+sed "s/.*DB_DATABASE=.*/DB_DATABASE=database\/database.sqlite/" .tmp > .env 
+code .
