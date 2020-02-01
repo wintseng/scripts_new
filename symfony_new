@@ -7,17 +7,12 @@ fi
 name="$1"
 composer create-project symfony/website-skeleton "$name"
 cd "$name"
-composer require fzaninotto/faker
 composer require doctrine/doctrine-fixtures-bundle --dev
-composer require sensiolabs/security-checker
-composer require symfony/webpack-encore-bundle
-composer require api
+composer require fzaninotto/faker sensiolabs/security-checker symfony/webpack-encore-bundle api
 
-npm install @symfony/webpack-encore --save-dev
-npm install bootstrap font-awesome jquery popper.js vue
-npm install webpack-notifier@^1.6.0 --save-dev
-npm install sass-loader@^7.0.1 node-sass --save-dev
-npm install startbootstrap-sb-admin-2
+npm install bootstrap font-awesome jquery popper.js vue startbootstrap-sb-admin-2
+npm install webpack-notifier@^1.6.0 sass-loader@^7.0.1 node-sass @symfony/webpack-encore webpack-notifier@^1.6.0 --save-dev
+
 echo '@import "~bootstrap/scss/bootstrap";' >> assets/css/global.scss
 echo '@import "~font-awesome/scss/font-awesome.scss";' >> assets/css/global.scss
 
@@ -37,15 +32,23 @@ npm run dev
 
 echo "    form_themes: ['bootstrap_4_layout.html.twig']" >> config/packages/twig.yaml
 
-sed 's/^DATABASE_URL=mysql/# DATABASE_URL=mysql/g' .env > tmp.env && mv tmp.env .env;
-echo 'DATABASE_URL=sqlite:///%kernel.project_dir%/var/data.db' >> .env
+### next 2 line for sqlite3
+# sed 's/^DATABASE_URL=mysql/# DATABASE_URL=mysql/g' .env > tmp.env && mv tmp.env .env;
+# echo 'DATABASE_URL=sqlite:///%kernel.project_dir%/var/data.db' >> .env
+
+### next line for mysql
+sed 's/^DATABASE_URL=mysql:\/\/db_user:db_password@127\.0\.0\.1:3306\/db_name/DATABASE_URL=mysql:\/\/root:password@127\.0\.0\.1:3306\/symfony/g' .env > tmp.env && mv tmp.env .env;
 
 php bin/console make:controller WelcomeController
 php bin/console make:controller Admin
+sed 's/^base\.html/admin\.html/g' templates/admin/index.html.twig > tmp.twig && mv tmp.twig templates/admin/index.html.twig;
+
 php bin/console doctrine:database:create
 # composer require symfony/mailer
 # composer require mailgun-mailer
-composer require symfony/security-bundle
+
+# no need next line
+# composer require symfony/security-bundle
 php bin/console make:user
 
 php bin/console make:migration
@@ -519,5 +522,5 @@ sed 's/{% block javascripts %}{% endblock %}/{{ encore_entry_script_tags("app") 
 sed 's/{% block body %}{% endblock %}/{% include("nav.html.twig") %}{% block body %}{% endblock %}/g' templates/base.html.twig > tmp.twig && mv tmp.twig templates/base.html.twig;
 
 
-echo '編輯與加入 \n{{ encore_entry_link_tags("app") }} \n{{ encore_entry_script_tags("app") }} \nto templates/base.html.twig'
+echo 'create Entity width "command php bin/console make:entity --api-resource", and modify config/packges/easy_admin.yaml'
 code .
