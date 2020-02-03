@@ -10,17 +10,23 @@ cd "$name"
 composer require doctrine/doctrine-fixtures-bundle --dev
 composer require fzaninotto/faker sensiolabs/security-checker symfony/webpack-encore-bundle api
 
-npm install bootstrap font-awesome jquery popper.js vue startbootstrap-sb-admin-2
+npm install bootstrap jquery popper.js vue startbootstrap-sb-admin-2
 npm install webpack-notifier@^1.6.0 sass-loader@^7.0.1 node-sass @symfony/webpack-encore webpack-notifier@^1.6.0 --save-dev
 
 echo '@import "~bootstrap/scss/bootstrap";' >> assets/css/global.scss
-echo '@import "~font-awesome/scss/font-awesome.scss";' >> assets/css/global.scss
 
-echo 'require("../css/global.scss");' >> assets/js/app.js
-sed "s/\/\/ import \$ from 'jquery'/import \$ from 'jquery'/g" assets/js/app.js > new.js && mv new.js assets/js/app.js;
+# npm install font-awesome
+# echo '@import "~font-awesome/scss/font-awesome.scss";' >> assets/css/global.scss
 
+npm install --save @fortawesome/fontawesome-free
+echo '@import "~@fortawesome/fontawesome-free/css/all.css";' >> assets/css/global.scss
+
+# sed "s/\/\/ import \$ from 'jquery'/import \$ from 'jquery'/g" assets/js/app.js > new.js && mv new.js assets/js/app.js;
+echo 'window.$ = window.JQuery = require("jquery");' >> assets/js/app.js
 echo 'window.Vue = require("vue");' >> assets/js/app.js
 echo 'require("bootstrap");' >> assets/js/app.js
+echo 'require("@fortawesome/fontawesome-free/js/all.js");' >> assets/js/app.js
+echo 'require("../css/global.scss");' >> assets/js/app.js
 
 echo '@import "~startbootstrap-sb-admin-2/scss/sb-admin-2.scss";' >> assets/css/sb-admin-2.scss
 echo 'require("startbootstrap-sb-admin-2/js/sb-admin-2");' >> assets/js/sb-admin-2.js
@@ -41,14 +47,13 @@ sed 's/^DATABASE_URL=mysql:\/\/db_user:db_password@127\.0\.0\.1:3306\/db_name/DA
 
 php bin/console make:controller WelcomeController
 php bin/console make:controller Admin
-sed 's/^base\.html/admin\.html/g' templates/admin/index.html.twig > tmp.twig && mv tmp.twig templates/admin/index.html.twig;
+sed 's/base\.html/admin\.html/g' templates/admin/index.html.twig > tmp.twig && mv tmp.twig templates/admin/index.html.twig;
 
 php bin/console doctrine:database:create
 # composer require symfony/mailer
 # composer require mailgun-mailer
 
-# no need next line
-# composer require symfony/security-bundle
+php bin/console make:entity product --api-resource
 php bin/console make:user
 
 php bin/console make:migration
